@@ -34,13 +34,13 @@ class VesuviusStream(IterableDataset):
         # Open all Zarr files and store them in a list
         self.s_list = [zarr.open(file_path, mode='r') for file_path in file_paths]
 
-        self.z_range = [s.shape[0] - z_size for s in self.s_list]
-        self.y_range = [s.shape[1] - y_size for s in self.s_list]
-        self.x_range = [s.shape[2] - x_size for s in self.s_list]
+        self.z_range = [s.shape[0] - z_size +1 for s in self.s_list]
+        self.y_range = [s.shape[1] - y_size +1 for s in self.s_list]
+        self.x_range = [s.shape[2] - x_size +1 for s in self.s_list]
         
-        assert all(z >= 0 for z in self.z_range), "z_size greater than max z dimension for some file"
-        assert all(y >= 0 for y in self.y_range), "y_size greater than max y dimension for some file"
-        assert all(x >= 0 for x in self.x_range), "x_size greater than max x dimension for some file"
+        assert all(z > 0 for z in self.z_range), "z_size greater than max z dimension for some file"
+        assert all(y > 0 for y in self.y_range), "y_size greater than max y dimension for some file"
+        assert all(x > 0 for x in self.x_range), "x_size greater than max x dimension for some file"
 
         # Calculate the number of samples per file based on the dimension ranges
         self.calculate_samples_info()
