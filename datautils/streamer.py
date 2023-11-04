@@ -7,8 +7,8 @@ from typing import Iterator
 class VesuviusStream(IterableDataset):
     file_path: str
     z_size: int
-    row_size: int
-    col_size: int
+    y_size: int
+    x_size: int
     samples_per_epoch: int
     current_sample: int
     s: zarr.Array
@@ -21,16 +21,31 @@ class VesuviusStream(IterableDataset):
         self.s = zarr.open(self.file_path, mode='r')
         self.samples_per_epoch = samples_per_epoch
         self.current_sample = 0
-
+        self.z_range = self.s.shape[0] - self.z_size
+        self.y_range = self.s.shape[1] - self.y_size
+        self.x_range = self.s.shape[2] - self.x_size
     def __iter__(self) -> Iterator['VesuviusStream']:
         return self
 
     def __next__(self) -> torch.Tensor:
         if self.current_sample >= self.samples_per_epoch:
           raise StopIteration
-        z_start = np.random.choice(self.s.shape[0] - self.z_size)
-        y_start = np.random.choice(self.s.shape[1] - self.y_size)
-        x_start = np.random.choice(self.s.shape[2] - self.x_size)
+        
+        if self.z_range > 0:
+            z_start = np.random.choice(self.z_range)
+        else:
+            z_start = 0
+
+        if self.y_range > 0:    
+            y_start = np.random.choice(self.y_range)
+        else:
+            y_start = 0
+        
+        if self.x_range > 0:
+            x_start = np.random.choice(self.x_range)
+        else:
+            x_start = 0
+
         block = self.fetch_block(self.s, z_start, self.z_size, y_start, self.y_size, x_start, self.x_size)
         self.current_sample += 1
 
