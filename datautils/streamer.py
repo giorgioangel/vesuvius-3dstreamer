@@ -43,17 +43,11 @@ class VesuviusStream(IterableDataset):
         assert all(x >= 0 for x in self.x_range), "x_size greater than max x dimension for some file"
 
         # Calculate the number of samples per file based on the dimension ranges
-        self.samples_per_file = [z * y * x for z, y, x in zip(self.z_range, self.y_range, self.x_range)]
-
-        if sampling_method == 'proportional':
-            self.total_samples = sum(self.samples_per_file)
-            self.file_probabilities = [samples / self.total_samples for samples in self.samples_per_file]
-        else:
-            self.file_probabilities = None  # Probabilities will not be used for uniform sampling
+        self.calculate_samples_info()
 
         # Initialize the coordinate generators per file
         self.coordinate_generators = [
-            self._coordinate_generator(self.z_range[i], self.y_range[i], self.x_range[i], shuffle)
+            self._coordinate_generator(self.z_range[i], self.y_range[i], self.x_range[i], self.shuffle)
             for i in range(len(self.file_paths))
         ]
     
@@ -68,6 +62,14 @@ class VesuviusStream(IterableDataset):
         y = (idx // x_range) % y_range
         x = idx % x_range
         yield (z, y, x)
+    
+    def calculate_samples_info(self):
+        self.samples_per_file = [z * y * x for z, y, x in zip(self.z_range, self.y_range, self.x_range)]
+        self.total_samples = sum(self.samples_per_file)
+        if self.sampling_method == 'proportional':
+            self.file_probabilities = [samples / self.total_samples for samples in self.samples_per_file]
+        else:
+            self.file_probabilities = None
 
     def update_probabilities(self, idx):
         # Recalculate the number of samples per file and total samples
@@ -80,6 +82,13 @@ class VesuviusStream(IterableDataset):
 
     def __iter__(self) -> Iterator['VesuviusStream']:
         self.current_sample = 0
+        self.calculate_samples_info()
+        # Initialize the coordinate generators per file
+        self.coordinate_generators = [
+            self._coordinate_generator(self.z_range[i], self.y_range[i], self.x_range[i], self.shuffle)
+            for i in range(len(self.file_paths))
+        ]
+
         return self
 
     def __len__(self) -> int:
