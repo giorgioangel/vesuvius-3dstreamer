@@ -66,7 +66,7 @@ Here the parameters `z_size`, `y_size` and `x_size` indicate the shape of the 3D
 ### Training Example
 Refer to training_example.ipynb for integrating data streaming into a training loop.
 
-### Memory Efficience
+### Memory Efficiency
 The streamer reads only the chunks in the Zarr archive necessary to produce the block. This is why it is memory efficient.
 It is recommended to set the chunksize parameters in the converter greater than the dimensions of the blocks to fetch.
 
