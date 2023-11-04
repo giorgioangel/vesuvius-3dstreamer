@@ -4,11 +4,13 @@
 
 The Vesuvius 3D DataStreamer is crafted to meet the growing demands of processing an increasing number of high-resolution 3D segments from the Herculaneum scrolls of the Vesuvius Challenge (https://scrollprize.org/).
 
-It is designed to bypass the limitations of in-memory data loading by directly streaming from disk sampled 3D blocks, which becomes increasingly critical in training pipelines as the dataset expands. 
+It is designed to bypass the limitations of in-memory data loading by directly streaming from disk sampled 3D blocks, which becomes increasingly critical in training pipelines as the dataset expands.
+
+If possible, it can sample also from numpy arrays loaded in the RAM. In this case, the access to the data is faster.
 
 ## Components
 ### datautils
-`streamer.py`: Implements `VesuviusStream`, a PyTorch `IterableDataset` for streaming 3D chunks from multiple Zarr archives. It is designed for efficiency, only loading the necessary data for each chunk. Can sample with two strategies: `uniform` will first uniformly select one file, and then sample without replacement within the file; `proportional` will select one file with a probability proportional to the number of samples in it (more samples, more probability).
+`streamer.py`: Implements `VesuviusStream`, a PyTorch `IterableDataset` for streaming 3D chunks from multiple Zarr archives (on disk) or numpy arrays (loaded on RAM). When dealing with disk-data, the algorithm is designed for efficiency, only loading the necessary data for each chunk. Can sample with two strategies: `uniform` will first uniformly select one file, and then sample without replacement within the file; `proportional` will select one file with a probability proportional to the number of samples in it (more samples, more probability).
 
 ### tools
 `converter.py`: A script to convert TIFF files into a Zarr archive, with options for cropping and chunking, facilitating efficient 3D array manipulation.
@@ -57,7 +59,8 @@ VesuviusStream loads data on-the-fly:
 from datautils.streamer import VesuviusStream
 from torch.utils.data import DataLoader
 
-dataset = VesuviusStream(file_paths=['./example_zarr/example.zarr'], z_size=2, y_size=4, x_size=6, samples_per_epoch=16, sampling_method='uniform', shuffle=True)
+# fragment_img = np.array(fragment loaded as 3D image)
+dataset = VesuviusStream(files=['./example_zarr/example.zarr', fragment_img], z_size=2, y_size=4, x_size=6, samples_per_epoch=16, sampling_method='uniform', shuffle=True)
 loader = DataLoader(dataset, batch_size=4, num_workers=2)
 ```
 
@@ -69,6 +72,12 @@ Refer to training_example.ipynb for integrating data streaming into a training l
 ### Memory Efficiency
 The streamer reads only the chunks in the Zarr archive necessary to produce the block. This is why it is memory efficient.
 It is recommended to set the chunksize parameters in the converter greater than the dimensions of the blocks to fetch.
+However, if the chunksize is too big the streamer will read too much useless data from the disk.
+
+## Speed-test
+In my Google Colab simulations, the time to sample `8` batches of `size = 128` each, `block_size = (4,64,64)`, from disk is `15 seconds`.
+The time to sample the same amount of data, from a numpy array in the RAM, is `6 seconds`.
+Therefore, if possible, load the numpy array in the RAM.
 
 ## Framework Compatibility
 The tool is built for PyTorch but can be adapted for other frameworks.

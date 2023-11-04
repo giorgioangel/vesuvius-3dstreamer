@@ -2,28 +2,27 @@ import zarr
 import torch
 import numpy as np
 from torch.utils.data import IterableDataset
-from typing import Iterator, List, Optional
+from typing import Iterator, List, Optional, Union
 
 class VesuviusStream(IterableDataset):
-    file_path: List[str]
     z_size: int
     y_size: int
     x_size: int
     samples_per_epoch: int
     current_sample: int
-    s: List[zarr.Array]
+    s_list: List[Union[zarr.Array, np.ndarray]]
     file_probabilities: Optional[List[float]]
     samples_per_file: List[int]
     sampling_method: str
     shuffle: bool
     total_samples: int
 
-    def __init__(self, file_paths: List[str], z_size: int, y_size: int, x_size: int, samples_per_epoch: int,
+    def __init__(self, files: List[Union[str, np.ndarray]], z_size: int, y_size: int, x_size: int, samples_per_epoch: int,
                  sampling_method: str = 'uniform', shuffle: bool = True):
-        assert len(file_paths), "No file in the file paths list."
+        assert len(files), "No file in the file paths list."
         assert sampling_method in ['uniform', 'proportional'], "sampling_method must be 'uniform' or 'proportional'"
+        assert all(isinstance(item, (str, np.ndarray)) for item in files), "Not all items are strings or numpy arrays"
 
-        self.file_paths = file_paths
         self.z_size = z_size
         self.y_size = y_size
         self.x_size = x_size
@@ -31,8 +30,17 @@ class VesuviusStream(IterableDataset):
         self.current_sample = 0
         self.sampling_method = sampling_method
         self.shuffle = shuffle
-        # Open all Zarr files and store them in a list
-        self.s_list = [zarr.open(file_path, mode='r') for file_path in file_paths]
+        # Open all Zarr files or np.ndarray and store them in a list
+        self.s_list = []
+        for i in range(len(files)):
+            if isinstance(files[i], np.ndarray):
+                assert len(files[i].shape) == 3, "One of the np arrays does not have 3 dimensions."
+                self.s_list.append(files[i])
+            elif isinstance(files[i], str):
+                self.s_list.append(zarr.open(files[i], mode='r'))
+                assert len(self.s_list[-1].shape) == 3, "One of the Zarr arrays does not have 3 dimensions."
+
+        assert len(self.s_list) == len(files), "Something wrong with loading files."
 
         self.z_range = [s.shape[0] - z_size +1 for s in self.s_list]
         self.y_range = [s.shape[1] - y_size +1 for s in self.s_list]
@@ -48,7 +56,7 @@ class VesuviusStream(IterableDataset):
         # Initialize the coordinate generators per file
         self.coordinate_generators = [
             self._coordinate_generator(self.z_range[i], self.y_range[i], self.x_range[i], self.shuffle)
-            for i in range(len(self.file_paths))
+            for i in range(len(self.s_list))
         ]
     
     @staticmethod
@@ -86,7 +94,7 @@ class VesuviusStream(IterableDataset):
         # Initialize the coordinate generators per file
         self.coordinate_generators = [
             self._coordinate_generator(self.z_range[i], self.y_range[i], self.x_range[i], self.shuffle)
-            for i in range(len(self.file_paths))
+            for i in range(len(self.s_list))
         ]
 
         return self
@@ -100,7 +108,7 @@ class VesuviusStream(IterableDataset):
 
         # Select a file based on the specified sampling method
         file_idx = np.random.choice(
-            len(self.file_paths),
+            len(self.s_list),
             p=self.file_probabilities if self.sampling_method == 'proportional' else None
         )
 
@@ -122,10 +130,9 @@ class VesuviusStream(IterableDataset):
         return torch.from_numpy(block).to(torch.int64)
     
     @staticmethod
-    def fetch_block(s: zarr.Array, z_start: int, z_size: int, y_start: int, y_size: int, x_start: int, x_size: int) -> np.ndarray:
+    def fetch_block(s: Union[zarr.Array, np.ndarray], z_start: int, z_size: int, y_start: int, y_size: int, x_start: int, x_size: int) -> np.ndarray:
         # Fetch a single block from the dataset
-        block = np.empty((z_size, y_size, x_size), dtype=np.int32)
+        if isinstance(s, zarr.Array):
+            block = np.empty((z_size, y_size, x_size), dtype=s.dtype)
         block = s[z_start:z_start + z_size, y_start:y_start + y_size, x_start:x_start + x_size]
         return block
-    
-
