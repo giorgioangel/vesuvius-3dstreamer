@@ -8,7 +8,7 @@ It is designed to bypass the limitations of in-memory data loading by directly s
 
 ## Components
 ### datautils
-`streamer.py`: Implements `VesuviusStream`, a PyTorch `IterableDataset` for streaming 3D chunks from a Zarr archive. It is designed for efficiency, only loading the necessary data for each chunk.
+`streamer.py`: Implements `VesuviusStream`, a PyTorch `IterableDataset` for streaming 3D chunks from multiple Zarr archives. It is designed for efficiency, only loading the necessary data for each chunk. Can sample with two strategies: `uniform` will first uniformly select one file, and then sample without replacement within the file; `proportional` will select one file with a probability proportional to the number of samples in it (more samples, more probability).
 
 ### tools
 `converter.py`: A script to convert TIFF files into a Zarr archive, with options for cropping and chunking, facilitating efficient 3D array manipulation.
@@ -57,7 +57,7 @@ VesuviusStream loads data on-the-fly:
 from datautils.streamer import VesuviusStream
 from torch.utils.data import DataLoader
 
-dataset = VesuviusStream(file_path='./example_zarr/example.zarr', z_size=2, y_size=4, x_size=6, samples_per_epoch=16)
+dataset = VesuviusStream(file_paths=['./example_zarr/example.zarr'], z_size=2, y_size=4, x_size=6, samples_per_epoch=16, sampling_method='uniform', shuffle=True)
 loader = DataLoader(dataset, batch_size=4, num_workers=2)
 ```
 
@@ -66,11 +66,12 @@ Here the parameters `z_size`, `y_size` and `x_size` indicate the shape of the 3D
 ### Training Example
 Refer to training_example.ipynb for integrating data streaming into a training loop.
 
+### Memory Efficience
+The streamer reads only the chunks in the Zarr archive necessary to produce the block. This is why it is memory efficient.
+It is recommended to set the chunksize parameters in the converter greater than the dimensions of the blocks to fetch.
+
 ## Framework Compatibility
 The tool is built for PyTorch but can be adapted for other frameworks.
-
-## Future Work
-The current version samples from a single folder. Future updates will include multi-folder sampling for multi-segments datasets.
 
 ## Contributing
 Contributions are welcome.
